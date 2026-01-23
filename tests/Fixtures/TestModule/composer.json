@@ -1,0 +1,9 @@
+{
+  "name": "oxid-esales/jwt-test-module",
+  "description": "Test module for JWT authentication integration tests",
+  "type": "oxideshop-module",
+  "license": "proprietary",
+  "require": {
+    "php": ">=8.1"
+  }
+}
