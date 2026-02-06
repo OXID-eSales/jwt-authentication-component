@@ -9,17 +9,24 @@ declare(strict_types=1);
 
 namespace OxidEsales\AuthComponent\Security\User;
 
+use OxidEsales\EshopCommunity\Internal\Transition\Utility\ContextInterface;
+
 final readonly class RoleResolver implements RoleResolverInterface
 {
+    /**
+     * @param array<string, list<string>> $roleMapping Map of rights string to additional roles
+     */
+    public function __construct(
+        private ContextInterface $context,
+        private array $roleMapping = []
+    ) {
+    }
+
     public function resolveRoles(string $rights): array
     {
-        $roles = ['ROLE_USER'];
+        $roles = array_merge(['ROLE_USER'], $this->roleMapping[$rights] ?? []);
 
-        if ($rights === 'malladmin') {
-            $roles[] = 'ROLE_ADMIN_MALL';
-        }
-
-        if ($rights === '1') {
+        if ($rights === (string) $this->context->getCurrentShopId()) {
             $roles[] = 'ROLE_ADMIN';
         }
 

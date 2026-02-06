@@ -1,0 +1,6 @@
+parameters:
+  oxid_jwt_authenticator.token_expiration_seconds: 3600
+  oxid_jwt_authenticator.firewall_name: 'api'
+  oxid_jwt_authenticator.login_path: '/api/login'
+  oxid_jwt_authenticator.token_issuer: 'oxid-api'
+  oxid_jwt_authenticator.token_audience: 'oxid-api'

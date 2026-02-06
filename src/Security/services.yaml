@@ -1,0 +1,92 @@
+imports:
+  - { resource: Auth/services.yaml }
+  - { resource: User/services.yaml }
+
+services:
+  _defaults:
+    autowire: true
+    public: false
+
+  OxidEsales\AuthComponent\Security\LoginController:
+    public: true
+
+  OxidEsales\AuthComponent\Security\ProfileController:
+    public: true
+
+  OxidEsales\AuthComponent\Security\AdminController:
+    public: true
+
+  Symfony\Component\Security\Http\HttpUtils: ~
+
+  Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorage: ~
+
+  Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface:
+    alias: Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorage
+
+  Symfony\Component\Security\Core\Role\RoleHierarchy:
+    arguments:
+      $hierarchy: '%oxid_jwt_authenticator.role_hierarchy%'
+
+  Symfony\Component\Security\Core\Role\RoleHierarchyInterface:
+    alias: Symfony\Component\Security\Core\Role\RoleHierarchy
+
+  Symfony\Component\Security\Core\Authentication\AuthenticationTrustResolver: ~
+
+  Symfony\Component\Security\Core\Authentication\AuthenticationTrustResolverInterface:
+    alias: Symfony\Component\Security\Core\Authentication\AuthenticationTrustResolver
+
+  Symfony\Component\Security\Core\Authorization\Voter\RoleHierarchyVoter:
+    tags:
+      - { name: security.voter }
+
+  Symfony\Component\Security\Core\Authorization\Voter\AuthenticatedVoter:
+    tags:
+      - { name: security.voter }
+
+  Symfony\Component\Security\Core\Authorization\AccessDecisionManager:
+    arguments:
+      $voters:
+        - '@Symfony\Component\Security\Core\Authorization\Voter\RoleHierarchyVoter'
+        - '@Symfony\Component\Security\Core\Authorization\Voter\AuthenticatedVoter'
+
+  Symfony\Component\Security\Core\Authorization\AccessDecisionManagerInterface:
+    alias: Symfony\Component\Security\Core\Authorization\AccessDecisionManager
+
+  Symfony\Component\Security\Core\Authorization\AuthorizationChecker: ~
+
+  Symfony\Component\Security\Core\Authorization\AuthorizationCheckerInterface:
+    alias: Symfony\Component\Security\Core\Authorization\AuthorizationChecker
+
+  Symfony\Component\Security\Http\EventListener\IsGrantedAttributeListener:
+    tags:
+      - { name: kernel.event_subscriber }
+
+  Symfony\Component\Security\Http\Authentication\AuthenticatorManager:
+    arguments:
+      $authenticators:
+        - '@Symfony\Component\Security\Http\Authenticator\JsonLoginAuthenticator'
+        - '@OxidEsales\AuthComponent\Security\Auth\JwtAuthenticator'
+      $tokenStorage: '@Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface'
+      $eventDispatcher: '@Symfony\Component\EventDispatcher\EventDispatcherInterface'
+      $firewallName: '%oxid_jwt_authenticator.firewall_name%'
+
+  Symfony\Component\Security\Http\Firewall\AuthenticatorManagerListener:
+    arguments:
+      $authenticationManager: '@Symfony\Component\Security\Http\Authentication\AuthenticatorManager'
+    tags:
+      - { name: kernel.event_listener, event: kernel.request, priority: 8 }
+
+  Symfony\Component\Security\Http\Controller\UserValueResolver:
+    public: true
+    arguments:
+      $tokenStorage: '@Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface'
+
+  OxidEsales\AuthComponent\Security\Auth\ExceptionListener:
+    tags:
+      - { name: kernel.event_subscriber }
+
+  Symfony\Component\Security\Http\EventListener\CheckCredentialsListener:
+    arguments:
+      $hasherFactory: '@OxidEsales\AuthComponent\Security\User\OxidPasswordHasherFactory'
+    tags:
+      - { name: kernel.event_subscriber }

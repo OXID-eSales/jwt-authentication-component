@@ -4,6 +4,9 @@
          bootstrap="../../../tests/bootstrap.php"
          cacheDirectory="../../../var/.phpunit.cache"
          beStrictAboutCoverageMetadata="true">
+    <php>
+        <env name="API_JWT_SECRET" value="test-secret-key-for-phpunit-testing"/>
+    </php>
     <coverage>
         <report>
             <text outputFile="php://stdout" showOnlySummary="false"/>

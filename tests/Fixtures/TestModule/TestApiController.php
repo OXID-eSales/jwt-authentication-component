@@ -34,7 +34,6 @@ final readonly class TestApiController
         return new JsonResponse([
             'message' => 'User endpoint - ROLE_USER required',
             'user' => [
-                'id' => $user->getUserId(),
                 'username' => $user->getUserIdentifier(),
                 'roles' => $user->getRoles(),
             ],
@@ -49,7 +48,6 @@ final readonly class TestApiController
         return new JsonResponse([
             'message' => 'Admin endpoint - ROLE_ADMIN required',
             'user' => [
-                'id' => $user->getUserId(),
                 'username' => $user->getUserIdentifier(),
                 'roles' => $user->getRoles(),
             ],
@@ -64,7 +62,6 @@ final readonly class TestApiController
             'message' => 'Info endpoint - optional authentication',
             'authenticated' => $user !== null,
             'user' => $user ? [
-                'id' => $user->getUserId(),
                 'username' => $user->getUserIdentifier(),
                 'roles' => $user->getRoles(),
             ] : null,

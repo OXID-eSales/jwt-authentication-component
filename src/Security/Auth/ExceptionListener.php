@@ -18,10 +18,10 @@ use Symfony\Component\Security\Core\Authorization\AuthorizationCheckerInterface;
 use Symfony\Component\Security\Core\Exception\AccessDeniedException;
 use Symfony\Component\Security\Core\Exception\AuthenticationException;
 
-final class ExceptionListener implements EventSubscriberInterface
+readonly class ExceptionListener implements EventSubscriberInterface
 {
     public function __construct(
-        private readonly AuthorizationCheckerInterface $authorizationChecker
+        private AuthorizationCheckerInterface $authorizationChecker
     ) {
     }
 
@@ -53,7 +53,7 @@ final class ExceptionListener implements EventSubscriberInterface
             $event->setResponse($response);
         } elseif ($exception instanceof AuthenticationException) {
             $response = new JsonResponse(
-                ['error' => 'Authentication failed', 'message' => $exception->getMessage()],
+                ['error' => 'Authentication failed'],
                 Response::HTTP_UNAUTHORIZED
             );
             $event->setResponse($response);

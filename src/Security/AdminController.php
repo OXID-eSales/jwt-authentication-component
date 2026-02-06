@@ -23,11 +23,16 @@ final readonly class AdminController
     public function getSettings(#[CurrentUser] ApiUser $user): Response
     {
         return new JsonResponse([
-            'settings' => [
-                'maintenance_mode' => false,
-                'api_rate_limit' => 1000,
-            ],
             'admin_user' => $user->getUserIdentifier(),
+        ]);
+    }
+
+    #[Route('/api/admin/info', methods: ['GET'])]
+    public function getPublicInfo(): Response
+    {
+        return new JsonResponse([
+            'version' => '1.0.0',
+            'status' => 'operational',
         ]);
     }
 }

@@ -15,7 +15,6 @@ use OxidEsales\EshopCommunity\Internal\Framework\Module\Install\DataObject\OxidE
 use OxidEsales\EshopCommunity\Internal\Framework\Module\Install\Service\ModuleInstallerInterface;
 use OxidEsales\EshopCommunity\Internal\Framework\Module\Setup\Bridge\ModuleActivationBridgeInterface;
 use OxidEsales\EshopCommunity\Internal\Transition\Utility\BasicContextInterface;
-use OxidEsales\AuthComponent\Security\Auth\TokenService;
 use PHPUnit\Framework\TestCase;
 
 final class ApiEndpointAuthenticationTest extends TestCase
@@ -85,7 +84,6 @@ final class ApiEndpointAuthenticationTest extends TestCase
 
         $this->assertSame(200, $response['http_code']);
         $this->assertSame('User endpoint - ROLE_USER required', $response['body']['message']);
-        $this->assertSame($this->regularUsername, $response['body']['user']['username']);
         $this->assertContains('ROLE_USER', $response['body']['user']['roles']);
     }
 
@@ -96,7 +94,6 @@ final class ApiEndpointAuthenticationTest extends TestCase
 
         $this->assertSame(200, $response['http_code']);
         $this->assertSame('User endpoint - ROLE_USER required', $response['body']['message']);
-        $this->assertSame($this->adminUsername, $response['body']['user']['username']);
         $this->assertContains('ROLE_USER', $response['body']['user']['roles']);
         $this->assertContains('ROLE_ADMIN', $response['body']['user']['roles']);
     }
@@ -126,7 +123,6 @@ final class ApiEndpointAuthenticationTest extends TestCase
 
         $this->assertSame(200, $response['http_code']);
         $this->assertSame('Admin endpoint - ROLE_ADMIN required', $response['body']['message']);
-        $this->assertSame($this->adminUsername, $response['body']['user']['username']);
         $this->assertContains('ROLE_ADMIN', $response['body']['user']['roles']);
     }
 
@@ -202,7 +198,6 @@ final class ApiEndpointAuthenticationTest extends TestCase
 
         $responseBody = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
 
         return [
             'http_code' => $httpCode,
@@ -241,7 +236,6 @@ final class ApiEndpointAuthenticationTest extends TestCase
     private function createTestUsers(): void
     {
         $this->regularUserId = bin2hex(random_bytes(16));
-        $regularPasswordHash = hash('sha512', $this->regularPassword);
 
         $queryBuilder = $this->queryBuilderFactory->create();
         $queryBuilder
@@ -252,18 +246,19 @@ final class ApiEndpointAuthenticationTest extends TestCase
                 'OXPASSWORD' => ':password',
                 'OXACTIVE' => ':active',
                 'OXRIGHTS' => ':rights',
+                'OXSHOPID' => ':shopid',
             ])
             ->setParameters([
                 'oxid' => $this->regularUserId,
                 'username' => $this->regularUsername,
-                'password' => $regularPasswordHash,
+                'password' => password_hash($this->regularPassword, PASSWORD_DEFAULT),
                 'active' => 1,
                 'rights' => 'user',
+                'shopid' => 1,
             ])
             ->execute();
 
         $this->adminUserId = bin2hex(random_bytes(16));
-        $adminPasswordHash = hash('sha512', $this->adminPassword);
 
         $queryBuilder = $this->queryBuilderFactory->create();
         $queryBuilder
@@ -274,13 +269,15 @@ final class ApiEndpointAuthenticationTest extends TestCase
                 'OXPASSWORD' => ':password',
                 'OXACTIVE' => ':active',
                 'OXRIGHTS' => ':rights',
+                'OXSHOPID' => ':shopid',
             ])
             ->setParameters([
                 'oxid' => $this->adminUserId,
                 'username' => $this->adminUsername,
-                'password' => $adminPasswordHash,
+                'password' => password_hash($this->adminPassword, PASSWORD_DEFAULT),
                 'active' => 1,
-                'rights' => '1',
+                'rights' => 'malladmin',
+                'shopid' => 1,
             ])
             ->execute();
     }

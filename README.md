@@ -40,13 +40,20 @@ curl -X POST https://your-shop.com/api/login \
   -d '{"username": "user@example.com", "password": "password"}'
 ```
 
+To authenticate against a specific subshop, pass the `shp` query parameter:
+
+```bash
+curl -X POST "https://your-shop.com/api/login?shp=2" \
+  -H "Content-Type: application/json" \
+  -d '{"username": "user@example.com", "password": "password"}'
+```
+
 Response:
 
 ```json
 {
   "token": "eyJ0eXAiOiJKV1QiLCJhbGc...",
   "user": {
-    "id": "abc123",
     "username": "user@example.com",
     "roles": ["ROLE_USER"]
   }
@@ -82,8 +89,6 @@ final readonly class MyApiController
 
 ### Accessing Authenticated User
 
-#### Using #[CurrentUser] Attribute (Recommended)
-
 ```php
 use OxidEsales\AuthComponent\Security\User\ApiUser;
 use Symfony\Component\Security\Http\Attribute\CurrentUser;
@@ -91,23 +96,8 @@ use Symfony\Component\Security\Http\Attribute\CurrentUser;
 public function getData(#[CurrentUser] ApiUser $user): Response
 {
     return new JsonResponse([
-        'user_id' => $user->getUserId(),
         'username' => $user->getUserIdentifier(),
         'roles' => $user->getRoles()
-    ]);
-}
-```
-
-#### Using Request Attributes
-
-```php
-public function getData(Request $request): Response
-{
-    $user = $request->attributes->get('_api_user');
-
-    return new JsonResponse([
-        'user_id' => $user->getUserId(),
-        'username' => $user->getUserIdentifier()
     ]);
 }
 ```
@@ -122,17 +112,16 @@ public function getData(Request $request): Response
 
 The component includes a configurable role hierarchy. By default, `ROLE_ADMIN_MALL` inherits `ROLE_ADMIN`, meaning mall admins can access all admin endpoints.
 
-Configure in `services.yaml`:
+Default configuration in `services.yaml`:
 
 ```yaml
 parameters:
   oxid_jwt_authenticator.role_hierarchy:
     ROLE_ADMIN_MALL:
       - ROLE_ADMIN
-    ROLE_SUPER_ADMIN:
-      - ROLE_ADMIN_MALL
-      - ROLE_MODERATOR
 ```
+
+For more complex role hierarchies, implement `RoleResolverInterface` with custom resolution logic.
 
 ## License
 

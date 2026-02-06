@@ -1,0 +1,31 @@
+services:
+  _defaults:
+    autowire: true
+    public: false
+
+  OxidEsales\AuthComponent\Security\Auth\TokenService:
+    arguments:
+      $secretKey: '%env(default::API_JWT_SECRET)%'
+      $issuer: '%oxid_jwt_authenticator.token_issuer%'
+      $audience: '%oxid_jwt_authenticator.token_audience%'
+      $expirationSeconds: '%oxid_jwt_authenticator.token_expiration_seconds%'
+
+  OxidEsales\AuthComponent\Security\Auth\TokenServiceInterface:
+    alias: OxidEsales\AuthComponent\Security\Auth\TokenService
+
+  OxidEsales\AuthComponent\Security\Auth\AuthenticationSuccessHandler: ~
+
+  Symfony\Component\Security\Http\Authenticator\JsonLoginAuthenticator:
+    arguments:
+      $httpUtils: '@Symfony\Component\Security\Http\HttpUtils'
+      $successHandler: '@OxidEsales\AuthComponent\Security\Auth\AuthenticationSuccessHandler'
+      $failureHandler: null
+      $options:
+        check_path: '%oxid_jwt_authenticator.login_path%'
+        username_path: 'username'
+        password_path: 'password'
+
+  Symfony\Component\Security\Http\AccessToken\AccessTokenExtractorInterface:
+    class: Symfony\Component\Security\Http\AccessToken\HeaderAccessTokenExtractor
+
+  OxidEsales\AuthComponent\Security\Auth\JwtAuthenticator: ~

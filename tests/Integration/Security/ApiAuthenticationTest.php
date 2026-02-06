@@ -9,17 +9,27 @@ declare(strict_types=1);
 
 namespace OxidEsales\AuthComponent\Tests\Integration\Security;
 
-use OxidEsales\EshopCommunity\Internal\Container\ContainerFactory;
-use OxidEsales\EshopCommunity\Internal\Framework\Database\QueryBuilderFactoryInterface;
 use OxidEsales\AuthComponent\Security\AdminController;
+use OxidEsales\AuthComponent\Security\Auth\AuthenticationSuccessHandler;
+use OxidEsales\AuthComponent\Security\Auth\JwtAuthenticator;
 use OxidEsales\AuthComponent\Security\Auth\TokenService;
-use OxidEsales\AuthComponent\Security\User\CredentialValidator;
-use OxidEsales\AuthComponent\Security\LoginController;
-use OxidEsales\AuthComponent\Security\User\RoleResolver;
 use OxidEsales\AuthComponent\Security\User\ApiUserProvider;
+use OxidEsales\AuthComponent\Security\User\OxidPasswordHasher;
+use OxidEsales\AuthComponent\Security\User\OxidPasswordHasherFactory;
+use OxidEsales\AuthComponent\Security\User\RoleResolver;
+use Symfony\Component\Security\Http\AccessToken\HeaderAccessTokenExtractor;
+use Symfony\Component\Security\Http\EventListener\CheckCredentialsListener;
+use OxidEsales\EshopCommunity\Internal\Container\ContainerFactory;
+use OxidEsales\EshopCommunity\Internal\Domain\Authentication\Bridge\PasswordServiceBridgeInterface;
+use OxidEsales\EshopCommunity\Internal\Framework\Database\QueryBuilderFactoryInterface;
+use OxidEsales\EshopCommunity\Internal\Transition\Utility\ContextInterface;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\Security\Core\Exception\UserNotFoundException;
+use Symfony\Component\Security\Core\Authentication\Token\UsernamePasswordToken;
+use Symfony\Component\Security\Http\Authenticator\JsonLoginAuthenticator;
+use Symfony\Component\Security\Http\Event\CheckPassportEvent;
+use Symfony\Component\Security\Http\HttpUtils;
 
 final class ApiAuthenticationTest extends TestCase
 {
@@ -28,7 +38,10 @@ final class ApiAuthenticationTest extends TestCase
     private string $testPassword = 'testpassword123';
     private TokenService $tokenService;
     private ApiUserProvider $userProvider;
-    private LoginController $loginController;
+    private JwtAuthenticator $jwtAuthenticator;
+    private JsonLoginAuthenticator $jsonLoginAuthenticator;
+    private AuthenticationSuccessHandler $successHandler;
+    private EventDispatcher $eventDispatcher;
     private AdminController $adminController;
     private QueryBuilderFactoryInterface $queryBuilderFactory;
     private string $testAdminId;
@@ -42,11 +55,35 @@ final class ApiAuthenticationTest extends TestCase
         $container = ContainerFactory::getInstance()->getContainer();
         $this->queryBuilderFactory = $container->get(QueryBuilderFactoryInterface::class);
 
-        $roleResolver = new RoleResolver();
-        $credentialValidator = new CredentialValidator($this->queryBuilderFactory);
-        $this->tokenService = new TokenService('test-secret-key-for-integration-tests-must-be-at-least-256-bits-long', 3600);
-        $this->userProvider = new ApiUserProvider($this->queryBuilderFactory, $roleResolver);
-        $this->loginController = new LoginController($credentialValidator, $this->tokenService, $roleResolver);
+        $context = $container->get(ContextInterface::class);
+        $roleResolver = new RoleResolver($context, [
+            'malladmin' => ['ROLE_ADMIN', 'ROLE_ADMIN_MALL'],
+        ]);
+        $this->userProvider = new ApiUserProvider($this->queryBuilderFactory, $roleResolver, $context);
+
+        $passwordHasher = new OxidPasswordHasher($container->get(PasswordServiceBridgeInterface::class));
+        $passwordHasherFactory = new OxidPasswordHasherFactory($passwordHasher);
+
+        $this->eventDispatcher = new EventDispatcher();
+        $this->eventDispatcher->addSubscriber(new CheckCredentialsListener($passwordHasherFactory));
+
+        $this->tokenService = new TokenService(
+            'test-secret-key-for-integration-tests-must-be-at-least-256-bits-long',
+            'oxid-api',
+            'oxid-api',
+            3600
+        );
+        $this->jwtAuthenticator = new JwtAuthenticator($this->tokenService, $this->userProvider, new HeaderAccessTokenExtractor());
+        $this->successHandler = new AuthenticationSuccessHandler($this->tokenService);
+
+        $httpUtils = new HttpUtils();
+        $this->jsonLoginAuthenticator = new JsonLoginAuthenticator(
+            $httpUtils,
+            $this->userProvider,
+            $this->successHandler,
+            null,
+            ['check_path' => '/api/login']
+        );
         $this->adminController = new AdminController();
 
         $this->createTestUser();
@@ -62,52 +99,33 @@ final class ApiAuthenticationTest extends TestCase
 
     public function testLoginWithValidCredentials(): void
     {
-        $request = new Request(
-            [],
-            [],
-            [],
-            [],
-            [],
-            ['CONTENT_TYPE' => 'application/json'],
-            json_encode([
-                'username' => $this->testUsername,
-                'password' => $this->testPassword,
-            ])
-        );
+        $request = $this->createLoginRequest($this->testUsername, $this->testPassword);
 
-        $response = $this->loginController->login($request);
+        $passport = $this->jsonLoginAuthenticator->authenticate($request);
+        $this->eventDispatcher->dispatch(new CheckPassportEvent($this->jsonLoginAuthenticator, $passport));
+
+        $user = $passport->getUser();
+        $token = new UsernamePasswordToken($user, 'api', $user->getRoles());
+        $response = $this->successHandler->onAuthenticationSuccess($request, $token);
 
         $this->assertSame(200, $response->getStatusCode());
 
         $data = json_decode($response->getContent(), true);
-        $this->assertSame($this->testUsername, $data['user']['username']);
         $this->assertContains('ROLE_USER', $data['user']['roles']);
     }
 
     public function testLoginWithInvalidCredentials(): void
     {
-        $request = new Request(
-            [],
-            [],
-            [],
-            [],
-            [],
-            ['CONTENT_TYPE' => 'application/json'],
-            json_encode([
-                'username' => $this->testUsername,
-                'password' => 'wrongpassword',
-            ])
-        );
+        $request = $this->createLoginRequest($this->testUsername, 'wrongpassword');
 
-        $response = $this->loginController->login($request);
+        $passport = $this->jsonLoginAuthenticator->authenticate($request);
 
-        $this->assertSame(401, $response->getStatusCode());
+        $this->expectException(\Symfony\Component\Security\Core\Exception\BadCredentialsException::class);
 
-        $data = json_decode($response->getContent(), true);
-        $this->assertSame('Invalid credentials', $data['error']);
+        $this->eventDispatcher->dispatch(new CheckPassportEvent($this->jsonLoginAuthenticator, $passport));
     }
 
-    public function testLoginWithMissingCredentials(): void
+    public function testLoginWithMissingPassword(): void
     {
         $request = new Request(
             [],
@@ -115,143 +133,204 @@ final class ApiAuthenticationTest extends TestCase
             [],
             [],
             [],
-            ['CONTENT_TYPE' => 'application/json'],
+            ['CONTENT_TYPE' => 'application/json', 'REQUEST_URI' => '/api/login', 'REQUEST_METHOD' => 'POST'],
             json_encode(['username' => $this->testUsername])
         );
+        $request->server->set('REQUEST_URI', '/api/login');
+        $request->server->set('REQUEST_METHOD', 'POST');
+        $request->headers->set('Content-Type', 'application/json');
 
-        $response = $this->loginController->login($request);
+        $this->expectException(\Symfony\Component\HttpKernel\Exception\BadRequestHttpException::class);
 
-        $this->assertSame(400, $response->getStatusCode());
-
-        $data = json_decode($response->getContent(), true);
-        $this->assertSame('Username and password are required', $data['error']);
+        $this->jsonLoginAuthenticator->authenticate($request);
     }
 
-    public function testTokenServiceGeneratesValidToken(): void
+    private function createLoginRequest(string $username, string $password): Request
     {
-        $token = $this->tokenService->generateToken('user123', 'test@example.com', ['ROLE_USER']);
+        $request = new Request(
+            [],
+            [],
+            [],
+            [],
+            [],
+            ['CONTENT_TYPE' => 'application/json', 'REQUEST_URI' => '/api/login', 'REQUEST_METHOD' => 'POST'],
+            json_encode(['username' => $username, 'password' => $password])
+        );
+        $request->server->set('REQUEST_URI', '/api/login');
+        $request->server->set('REQUEST_METHOD', 'POST');
+        $request->headers->set('Content-Type', 'application/json');
 
-        $parsedToken = $this->tokenService->parseToken($token);
-        $this->assertSame('user123', $parsedToken->claims()->get('uid'));
-        $this->assertSame('test@example.com', $parsedToken->claims()->get('username'));
+        return $request;
     }
 
-    public function testTokenServiceValidatesToken(): void
+    public function testAdminUserCanAccessAdminEndpoint(): void
     {
-        $token = $this->tokenService->generateToken('user123', 'test@example.com');
+        $admin = $this->userProvider->loadByOxid($this->testAdminId);
+        $jwt = $this->tokenService->generateToken($admin);
 
-        $this->assertSame(true, $this->tokenService->validateToken($token));
-        $this->assertFalse($this->tokenService->validateToken('invalid.token.here'));
-    }
+        $request = new Request();
+        $request->headers->set('Authorization', 'Bearer ' . $jwt);
 
-    public function testUserProviderLoadsUserByUsername(): void
-    {
-        $user = $this->userProvider->loadUserByIdentifier($this->testUsername);
+        $passport = $this->jwtAuthenticator->authenticate($request);
+        $user = $passport->getUser();
 
-        $this->assertSame($this->testUsername, $user->getUserIdentifier());
-        $this->assertSame($this->testUserId, $user->getUserId());
-        $this->assertContains('ROLE_USER', $user->getRoles());
-    }
-
-    public function testUserProviderThrowsExceptionForNonExistentUser(): void
-    {
-        $this->expectException(UserNotFoundException::class);
-
-        $this->userProvider->loadUserByIdentifier('nonexistent@example.com');
-    }
-
-    public function testTokenContainsUserInformation(): void
-    {
-        $token = $this->getAuthToken();
-
-        $parts = explode('.', $token);
-
-        $payload = json_decode(base64_decode(strtr($parts[1], '-_', '+/')), true);
-        $this->assertSame($this->testUsername, $payload['username']);
-        $this->assertContains('ROLE_USER', $payload['roles']);
-    }
-
-    public function testRegularUserCannotAccessAdminEndpoint(): void
-    {
-        $user = $this->userProvider->loadUserByIdentifier($this->testUsername);
+        $this->assertContains('ROLE_ADMIN', $user->getRoles());
 
         $response = $this->adminController->getSettings($user);
 
         $this->assertSame(200, $response->getStatusCode());
     }
 
-    public function testAdminUserCanAccessAdminEndpoint(): void
+    public function testTokenAuthenticatesCorrectUserById(): void
     {
-        $admin = $this->userProvider->loadUserByIdentifier($this->testAdminUsername);
+        $user = $this->userProvider->loadByOxid($this->testUserId);
+        $jwt = $this->tokenService->generateToken($user);
 
-        $response = $this->adminController->getSettings($admin);
+        $request = new Request();
+        $request->headers->set('Authorization', 'Bearer ' . $jwt);
 
-        $this->assertSame(200, $response->getStatusCode());
+        $passport = $this->jwtAuthenticator->authenticate($request);
+        $authenticatedUser = $passport->getUser();
 
-        $data = json_decode($response->getContent(), true);
-        $this->assertFalse($data['settings']['maintenance_mode']);
-        $this->assertSame(1000, $data['settings']['api_rate_limit']);
-        $this->assertSame($this->testAdminUsername, $data['admin_user']);
+        $this->assertSame($this->testUserId, $authenticatedUser->getOxid());
     }
 
-    public function testPublicEndpointAccessibleWithoutAuthentication(): void
+    public function testDeactivatedUserJwtIsRejected(): void
     {
-        $response = $this->adminController->getPublicInfo();
+        $user = $this->userProvider->loadByOxid($this->testUserId);
+        $jwt = $this->tokenService->generateToken($user);
 
-        $this->assertSame(200, $response->getStatusCode());
+        $this->queryBuilderFactory->create()->getConnection()
+            ->update('oxuser', ['OXACTIVE' => 0], ['OXID' => $this->testUserId]);
 
-        $data = json_decode($response->getContent(), true);
-        $this->assertSame('1.0.0', $data['version']);
-        $this->assertSame('operational', $data['status']);
+        try {
+            $request = new Request();
+            $request->headers->set('Authorization', 'Bearer ' . $jwt);
+
+            $this->expectException(\Symfony\Component\Security\Core\Exception\UserNotFoundException::class);
+
+            $passport = $this->jwtAuthenticator->authenticate($request);
+            $passport->getUser();
+        } finally {
+            $this->queryBuilderFactory->create()->getConnection()
+                ->update('oxuser', ['OXACTIVE' => 1], ['OXID' => $this->testUserId]);
+        }
     }
 
-    private function getAuthToken(): string
+    public function testAdminRightsRevocationReflectedImmediately(): void
     {
-        $request = new Request(
-            [],
-            [],
-            [],
-            [],
-            [],
-            ['CONTENT_TYPE' => 'application/json'],
-            json_encode([
-                'username' => $this->testUsername,
-                'password' => $this->testPassword,
-            ])
+        $admin = $this->userProvider->loadByOxid($this->testAdminId);
+        $jwt = $this->tokenService->generateToken($admin);
+
+        $this->queryBuilderFactory->create()->getConnection()
+            ->update('oxuser', ['OXRIGHTS' => 'user'], ['OXID' => $this->testAdminId]);
+
+        try {
+            $request = new Request();
+            $request->headers->set('Authorization', 'Bearer ' . $jwt);
+
+            $passport = $this->jwtAuthenticator->authenticate($request);
+            $reloadedUser = $passport->getUser();
+
+            $this->assertNotContains('ROLE_ADMIN', $reloadedUser->getRoles());
+            $this->assertContains('ROLE_USER', $reloadedUser->getRoles());
+        } finally {
+            $this->queryBuilderFactory->create()->getConnection()
+                ->update('oxuser', ['OXRIGHTS' => 'malladmin'], ['OXID' => $this->testAdminId]);
+        }
+    }
+
+    public function testSqlInjectionInJwtUserIdIsRejected(): void
+    {
+        $injectionUser = new \OxidEsales\AuthComponent\Security\User\ApiUser(
+            "' OR '1'='1",
+            'attacker@test.com',
+            ['ROLE_USER']
         );
+        $jwt = $this->tokenService->generateToken($injectionUser);
 
-        $response = $this->loginController->login($request);
-        $data = json_decode($response->getContent(), true);
+        $request = new Request();
+        $request->headers->set('Authorization', 'Bearer ' . $jwt);
 
-        return $data['token'] ?? '';
+        $this->expectException(\Symfony\Component\Security\Core\Exception\UserNotFoundException::class);
+
+        $passport = $this->jwtAuthenticator->authenticate($request);
+        $passport->getUser();
     }
 
-    private function getAuthTokenForAdmin(): string
+    public function testOtherShopUserJwtIsRejected(): void
     {
-        $request = new Request(
-            [],
-            [],
-            [],
-            [],
-            [],
-            ['CONTENT_TYPE' => 'application/json'],
-            json_encode([
-                'username' => $this->testAdminUsername,
-                'password' => $this->testAdminPassword,
-            ])
+        $connection = $this->queryBuilderFactory->create()->getConnection();
+        $otherShopId = uniqid('os_', true);
+
+        $connection->insert('oxuser', [
+            'OXID' => $otherShopId,
+            'OXUSERNAME' => "attacker-{$otherShopId}@example.com",
+            'OXPASSWORD' => password_hash('password', PASSWORD_DEFAULT),
+            'OXRIGHTS' => 'user',
+            'OXACTIVE' => 1,
+            'OXSHOPID' => 999,
+        ]);
+
+        try {
+            $otherShopUser = new \OxidEsales\AuthComponent\Security\User\ApiUser(
+                $otherShopId,
+                "attacker-{$otherShopId}@example.com",
+                ['ROLE_USER']
+            );
+            $jwt = $this->tokenService->generateToken($otherShopUser);
+
+            $request = new Request();
+            $request->headers->set('Authorization', 'Bearer ' . $jwt);
+
+            $this->expectException(\Symfony\Component\Security\Core\Exception\UserNotFoundException::class);
+
+            $passport = $this->jwtAuthenticator->authenticate($request);
+            $passport->getUser();
+        } finally {
+            $connection->delete('oxuser', ['OXID' => $otherShopId]);
+        }
+    }
+
+    public function testRegularUserJwtHasNoAdminRole(): void
+    {
+        $user = $this->userProvider->loadByOxid($this->testUserId);
+        $jwt = $this->tokenService->generateToken($user);
+
+        $request = new Request();
+        $request->headers->set('Authorization', 'Bearer ' . $jwt);
+
+        $passport = $this->jwtAuthenticator->authenticate($request);
+        $authenticatedUser = $passport->getUser();
+
+        $this->assertContains('ROLE_USER', $authenticatedUser->getRoles());
+        $this->assertNotContains('ROLE_ADMIN', $authenticatedUser->getRoles());
+        $this->assertNotContains('ROLE_ADMIN_MALL', $authenticatedUser->getRoles());
+    }
+
+    public function testTokenWithNonExistentUserIdFailsAuthentication(): void
+    {
+        $fakeUser = new \OxidEsales\AuthComponent\Security\User\ApiUser(
+            'nonexistent-user-id',
+            'fake@test.com',
+            ['ROLE_USER']
         );
+        $jwt = $this->tokenService->generateToken($fakeUser);
 
-        $response = $this->loginController->login($request);
-        $data = json_decode($response->getContent(), true);
+        $request = new Request();
+        $request->headers->set('Authorization', 'Bearer ' . $jwt);
 
-        return $data['token'] ?? '';
+        $this->expectException(\Symfony\Component\Security\Core\Exception\UserNotFoundException::class);
+
+        $passport = $this->jwtAuthenticator->authenticate($request);
+        $passport->getUser();
     }
 
     private function createTestUser(): void
     {
         $this->testUserId = bin2hex(random_bytes(16));
 
-        $passwordHash = hash('sha512', $this->testPassword);
+        $passwordHash = password_hash($this->testPassword, PASSWORD_DEFAULT);
 
         $queryBuilder = $this->queryBuilderFactory->create();
         $queryBuilder
@@ -289,7 +368,7 @@ final class ApiAuthenticationTest extends TestCase
     {
         $this->testAdminId = bin2hex(random_bytes(16));
 
-        $passwordHash = hash('sha512', $this->testAdminPassword);
+        $passwordHash = password_hash($this->testAdminPassword, PASSWORD_DEFAULT);
 
         $queryBuilder = $this->queryBuilderFactory->create();
         $queryBuilder

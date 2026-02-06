@@ -23,7 +23,6 @@ final readonly class ProfileController
     public function getProfile(#[CurrentUser] ApiUser $user): Response
     {
         return new JsonResponse([
-            'id' => $user->getUserId(),
             'username' => $user->getUserIdentifier(),
             'roles' => $user->getRoles()
         ]);

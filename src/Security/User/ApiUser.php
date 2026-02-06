@@ -9,15 +9,22 @@ declare(strict_types=1);
 
 namespace OxidEsales\AuthComponent\Security\User;
 
+use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 
-final readonly class ApiUser implements UserInterface
+final class ApiUser implements UserInterface, PasswordAuthenticatedUserInterface
 {
     public function __construct(
-        private string $userId,
-        private string $username,
-        private array  $roles
+        private readonly string $oxid,
+        private readonly string $username,
+        private readonly array $roles,
+        #[\SensitiveParameter] private ?string $password = null
     ) {
+    }
+
+    public function getOxid(): string
+    {
+        return $this->oxid;
     }
 
     public function getUserIdentifier(): string
@@ -25,17 +32,18 @@ final readonly class ApiUser implements UserInterface
         return $this->username;
     }
 
-    public function getUserId(): string
-    {
-        return $this->userId;
-    }
-
     public function getRoles(): array
     {
         return $this->roles;
     }
 
+    public function getPassword(): ?string
+    {
+        return $this->password;
+    }
+
     public function eraseCredentials(): void
     {
+        $this->password = null;
     }
 }

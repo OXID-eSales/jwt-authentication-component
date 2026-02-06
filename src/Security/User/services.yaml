@@ -1,0 +1,31 @@
+parameters:
+  oxid_jwt_authenticator.role_hierarchy:
+    ROLE_ADMIN_MALL:
+      - ROLE_ADMIN
+  oxid_jwt_authenticator.role_mapping:
+    malladmin: ['ROLE_ADMIN', 'ROLE_ADMIN_MALL']
+
+services:
+  _defaults:
+    autowire: true
+    public: false
+
+  OxidEsales\AuthComponent\Security\User\RoleResolver:
+    arguments:
+      $roleMapping: '%oxid_jwt_authenticator.role_mapping%'
+
+  OxidEsales\AuthComponent\Security\User\RoleResolverInterface:
+    alias: OxidEsales\AuthComponent\Security\User\RoleResolver
+
+  Symfony\Component\Security\Core\User\UserProviderInterface:
+    alias: OxidEsales\AuthComponent\Security\User\ApiUserProviderInterface
+
+  OxidEsales\AuthComponent\Security\User\ApiUserProviderInterface:
+    class: OxidEsales\AuthComponent\Security\User\ApiUserProvider
+
+  OxidEsales\AuthComponent\Security\User\OxidPasswordHasher: ~
+
+  OxidEsales\AuthComponent\Security\User\OxidPasswordHasherFactory: ~
+
+  Symfony\Component\PasswordHasher\Hasher\PasswordHasherFactoryInterface:
+    alias: OxidEsales\AuthComponent\Security\User\OxidPasswordHasherFactory

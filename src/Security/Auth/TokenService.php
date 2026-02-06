@@ -10,52 +10,67 @@ declare(strict_types=1);
 namespace OxidEsales\AuthComponent\Security\Auth;
 
 use DateTimeImmutable;
+use DateTimeZone;
 use Lcobucci\JWT\Configuration;
 use Lcobucci\JWT\Signer\Hmac\Sha256;
 use Lcobucci\JWT\Signer\Key\InMemory;
 use Lcobucci\JWT\Token\Plain;
+use Lcobucci\JWT\Validation\Constraint\IssuedBy;
+use Lcobucci\JWT\Validation\Constraint\PermittedFor;
 use Lcobucci\JWT\Validation\Constraint\SignedWith;
-use OxidEsales\AuthComponent\Security\Auth\Exception\InvalidTokenException;
+use OxidEsales\AuthComponent\Security\User\ApiUser;
 use Psr\Clock\ClockInterface;
+use Symfony\Component\Security\Core\Exception\AuthenticationException;
 
-class TokenService implements TokenServiceInterface
+readonly class TokenService implements TokenServiceInterface
 {
     private Configuration $config;
     private ClockInterface $clock;
-    private SignedWith $signatureConstraint;
+    private array $validationConstraints;
 
     public function __construct(
-        private readonly string $secretKey,
-        private readonly int $expirationSeconds = 3600
+        private ?string $secretKey = null,
+        private string $issuer = 'oxid-api',
+        private string $audience = 'oxid-api',
+        private int $expirationSeconds = 3600,
+        ?ClockInterface $clock = null
     ) {
+        if ($this->secretKey === null) {
+            throw new \RuntimeException(
+                'JWT authentication is not configured. Set the API_JWT_SECRET environment variable.'
+            );
+        }
+
         $this->config = Configuration::forSymmetricSigner(
             new Sha256(),
             InMemory::plainText($this->secretKey)
         );
 
-        $this->clock = new class implements ClockInterface {
-            public function now(): \DateTimeImmutable
+        $this->clock = $clock ?? new class implements ClockInterface {
+            public function now(): DateTimeImmutable
             {
-                return new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
+                return new DateTimeImmutable('now', new DateTimeZone('UTC'));
             }
         };
 
-        $this->signatureConstraint = new SignedWith($this->config->signer(), $this->config->signingKey());
+        $this->validationConstraints = [
+            new SignedWith($this->config->signer(), $this->config->signingKey()),
+            new IssuedBy($this->issuer),
+            new PermittedFor($this->audience),
+        ];
     }
 
-    public function generateToken(string $userId, string $username, array $roles = ['ROLE_USER']): string
+    public function generateToken(ApiUser $user): string
     {
-        $now = new DateTimeImmutable();
+        $now = $this->clock->now();
 
         $token = $this->config->builder()
-            ->issuedBy('oxid-api')
-            ->permittedFor('oxid-api')
+            ->issuedBy($this->issuer)
+            ->permittedFor($this->audience)
             ->identifiedBy(bin2hex(random_bytes(16)))
             ->issuedAt($now)
             ->expiresAt($now->modify(sprintf('+%d seconds', $this->expirationSeconds)))
-            ->withClaim('uid', $userId)
-            ->withClaim('username', $username)
-            ->withClaim('roles', $roles)
+            ->withClaim('userId', $user->getOxid())
             ->getToken($this->config->signer(), $this->config->signingKey());
 
         return $token->toString();
@@ -66,15 +81,15 @@ class TokenService implements TokenServiceInterface
         try {
             $parsedToken = $this->config->parser()->parse($token);
         } catch (\Throwable $e) {
-            throw new InvalidTokenException('Unable to parse token', 0, $e);
+            throw new AuthenticationException('Unable to parse token', 0, $e);
         }
 
-        if (!$this->hasValidSignature($parsedToken)) {
-            throw new InvalidTokenException('Invalid token signature');
+        if (!$this->isValid($parsedToken)) {
+            throw new AuthenticationException('Invalid token');
         }
 
         if ($this->isExpired($parsedToken)) {
-            throw new InvalidTokenException('Token expired');
+            throw new AuthenticationException('Token expired');
         }
 
         return $parsedToken;
@@ -85,14 +100,14 @@ class TokenService implements TokenServiceInterface
         try {
             $this->parseToken($token);
             return true;
-        } catch (InvalidTokenException) {
+        } catch (AuthenticationException) {
             return false;
         }
     }
 
-    private function hasValidSignature(Plain $token): bool
+    private function isValid(Plain $token): bool
     {
-        return $this->config->validator()->validate($token, $this->signatureConstraint);
+        return $this->config->validator()->validate($token, ...$this->validationConstraints);
     }
 
     private function isExpired(Plain $token): bool
