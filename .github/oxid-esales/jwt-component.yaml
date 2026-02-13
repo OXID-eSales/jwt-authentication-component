@@ -1,0 +1,54 @@
+install:
+  composer:
+    early: 'skip'
+    transform: |
+      {
+        "config": {
+          "github-protocols": ["https"]
+        },
+        "preferred-install": {
+          "oxid-esales/*": "source"
+        },
+        "require": {
+          "oxid-esales/apex-theme": "{{ .Data.install.composer.dev_ref }}",
+          "oxid-esales/oxideshop-ce": "{{ .Data.install.composer.dev_ref }}",
+          "oxid-esales/jwt-authentication-component": "{{ .Data.install.composer.ref_name }}"
+        },
+        "require-dev":{
+          "oxid-esales/developer-tools": "{{ .Data.install.composer.dev_ref }}",
+          "phpunit/phpunit": "^11.4"
+        },
+        "autoload-dev":{
+          "psr-4":{
+            "OxidEsales\\AuthComponent\\Tests\\": "./vendor/oxid-esales/jwt-authentication-component/tests"
+          }
+        },
+        "repositories": {
+          "oxid-esales/jwt-authentication-component": {
+            "type": "git",
+            "url": "https://github.com/OXID-eSales/jwt-authentication-component.git"
+          }
+        }
+      }
+
+runscript:
+  matrix:
+    script: |
+      [
+        "jwt:~/unit.sh",
+        "jwt:~/integration.sh"
+      ]
+  composer:
+    early: 'skip'
+  container:
+    options:
+      -e API_JWT_SECRET=this-is-a-test-secret-key-for-ci
+  jwt:
+    path: 'vendor/oxid-esales/jwt-authentication-component'
+
+sonarcloud:
+  matrix:
+    testplan: 'skip'
+
+finish:
+  slack_title: 'JWT Component ({{ .Data.install.git.ref }}) by {{ .Github.Actor }}'
