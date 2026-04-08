@@ -1,6 +1,14 @@
 # Change Log for OXID eShop JWT Authentication Component
 
-## v1.0.0 - Unreleased
+## v1.0.0 - 2026-04-08
 
 ### Added
-- Initial release
+- JWT token-based authentication for API endpoints
+- Login (`POST /api/login`) endpoint
+- Role-based access control via `#[IsGranted]` attribute
+- `#[CurrentUser]` attribute for injecting the authenticated user
+- Configurable role hierarchy via `oxid_jwt_authenticator.role_hierarchy` parameter
+- `RoleResolverInterface` for custom role resolution
+- `TokenServiceInterface` for custom token handling
+- OXID password hasher integration with Symfony Security
+- Configurable token expiration

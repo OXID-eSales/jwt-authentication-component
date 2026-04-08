@@ -30,6 +30,15 @@ Generate a secure secret:
 openssl rand -base64 64
 ```
 
+### Token Expiration
+
+Default token lifetime is 3600 seconds (1 hour). Override via parameter:
+
+```yaml
+parameters:
+  oxid_jwt_authenticator.token_expiration_seconds: 7200
+```
+
 ## Usage
 
 ### Login
