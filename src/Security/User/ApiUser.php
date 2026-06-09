@@ -10,9 +10,8 @@ declare(strict_types=1);
 namespace OxidEsales\AuthComponent\Security\User;
 
 use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
-use Symfony\Component\Security\Core\User\UserInterface;
 
-final class ApiUser implements UserInterface, PasswordAuthenticatedUserInterface
+final class ApiUser implements OxidAwareUserInterface, PasswordAuthenticatedUserInterface
 {
     public function __construct(
         private readonly string $oxid,

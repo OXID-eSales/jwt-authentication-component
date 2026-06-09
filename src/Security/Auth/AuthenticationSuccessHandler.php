@@ -9,7 +9,7 @@ declare(strict_types=1);
 
 namespace OxidEsales\AuthComponent\Security\Auth;
 
-use OxidEsales\AuthComponent\Security\User\ApiUser;
+use OxidEsales\AuthComponent\Security\User\OxidAwareUserInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -27,7 +27,7 @@ final readonly class AuthenticationSuccessHandler implements AuthenticationSucce
     {
         $user = $token->getUser();
 
-        if (!$user instanceof ApiUser) {
+        if (!$user instanceof OxidAwareUserInterface) {
             return new JsonResponse(['error' => 'Invalid user type'], Response::HTTP_UNAUTHORIZED);
         }
 

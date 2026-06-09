@@ -10,9 +10,9 @@ declare(strict_types=1);
 namespace OxidEsales\AuthComponent\Tests\Unit\Security;
 
 use OxidEsales\AuthComponent\Security\User\ApiUser;
+use OxidEsales\AuthComponent\Security\User\OxidAwareUserInterface;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
-use Symfony\Component\Security\Core\User\UserInterface;
 
 final class ApiUserTest extends TestCase
 {
@@ -20,7 +20,7 @@ final class ApiUserTest extends TestCase
     {
         $user = new ApiUser('oxid', 'user@example.com', ['ROLE_USER']);
 
-        $this->assertInstanceOf(UserInterface::class, $user);
+        $this->assertInstanceOf(OxidAwareUserInterface::class, $user);
         $this->assertInstanceOf(PasswordAuthenticatedUserInterface::class, $user);
     }
 

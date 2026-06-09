@@ -18,7 +18,7 @@ use Lcobucci\JWT\Token\Plain;
 use Lcobucci\JWT\Validation\Constraint\IssuedBy;
 use Lcobucci\JWT\Validation\Constraint\PermittedFor;
 use Lcobucci\JWT\Validation\Constraint\SignedWith;
-use OxidEsales\AuthComponent\Security\User\ApiUser;
+use OxidEsales\AuthComponent\Security\User\OxidAwareUserInterface;
 use Psr\Clock\ClockInterface;
 use Symfony\Component\Security\Core\Exception\AuthenticationException;
 
@@ -60,7 +60,7 @@ readonly class TokenService implements TokenServiceInterface
         ];
     }
 
-    public function generateToken(ApiUser $user): string
+    public function generateToken(OxidAwareUserInterface $user): string
     {
         $now = $this->clock->now();
 
