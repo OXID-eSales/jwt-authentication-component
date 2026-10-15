@@ -10,9 +10,9 @@ install:
           "oxid-esales/*": "source"
         },
         "require": {
-          "oxid-esales/apex-theme": "{{ .Data.install.composer.dev_ref }}",
-          "oxid-esales/oxideshop-ce": "{{ .Data.install.composer.dev_ref }}",
-          "oxid-esales/jwt-authentication-component": "{{ .Data.install.composer.ref_name }}"
+          "oxid-esales/apex-theme": "~v3.2.0",
+          "oxid-esales/oxideshop-ce": "~v7.6.0",
+          "oxid-esales/jwt-authentication-component": "~v1.1.0"
         },
         "require-dev":{
           "oxid-esales/developer-tools": "{{ .Data.install.composer.dev_ref }}",

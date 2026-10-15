@@ -1,6 +1,6 @@
 # Change Log for OXID eShop JWT Authentication Component
 
-## v1.1.0 - Unreleased
+## v1.1.0 - 2026-10-15
 
 ### Added
 - `OxidAwareUserInterface` for type safe access to OXID user
