@@ -16,6 +16,7 @@ use Lcobucci\JWT\Signer\Hmac\Sha256;
 use Lcobucci\JWT\Signer\Key\InMemory;
 use OxidEsales\AuthComponent\Security\Auth\TokenService;
 use OxidEsales\AuthComponent\Security\User\ApiUser;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Psr\Clock\ClockInterface;
 use Symfony\Component\Security\Core\Exception\AuthenticationException;
@@ -278,11 +279,62 @@ final class TokenServiceTest extends TestCase
         $this->tokenService->parseToken($header . '.' . $payload . '.');
     }
 
-    public function testConstructorThrowsExceptionWhenSecretKeyIsNull(): void
+    #[DataProvider('missingSecretProvider')]
+    public function testConstructorWithoutSecretDoesNotThrowException(?string $secret): void
     {
-        $this->expectException(\RuntimeException::class);
+        $service = new TokenService($secret);
 
-        new TokenService(null);
+        $this->assertInstanceOf(TokenService::class, $service);
+    }
+
+    #[DataProvider('missingSecretProvider')]
+    public function testGenerateTokenWithoutSecretThrowsException(?string $secret): void{
+        $service = new TokenService($secret);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('JWT authentication is not configured');
+
+        $service->generateToken(new ApiUser('user123', 'user@test.com', ['ROLE_USER']));
+    }
+
+    #[DataProvider('missingSecretProvider')]
+    public function testParseTokenWithoutSecretThrowsException(?string $secret): void
+    {
+        $service = new TokenService($secret);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Unable to parse token');
+
+        $service->parseToken('invalid_token');
+    }
+
+    public static function missingSecretProvider(): array
+    {
+        return [
+            'null' => [null],
+            'empty string' => [''],
+        ];
+    }
+
+    public function testTokenCreationWithSecret(): void
+    {
+        $service = new TokenService($this->secretKey);
+
+        $token = $service->generateToken(new ApiUser('user123', 'user@test.com', ['ROLE_USER']));
+        $parsed = $service->parseToken($token);
+
+        $this->assertNotNull($parsed);
+    }
+
+    public function testTokenFromOtherSecretIsRejected(): void
+    {
+        $other = new TokenService('another-secret-with-enough-length-for-hs256-5678');
+        $token = $other->generateToken(new ApiUser('user123', 'user@test.com', ['ROLE_USER']));
+
+        $service = new TokenService($this->secretKey);
+
+        $this->expectException(\Throwable::class);
+        $service->parseToken($token);
     }
 
     public function testTokenServiceUsesInjectedClock(): void
