@@ -22,11 +22,11 @@ use OxidEsales\AuthComponent\Security\User\OxidAwareUserInterface;
 use Psr\Clock\ClockInterface;
 use Symfony\Component\Security\Core\Exception\AuthenticationException;
 
-readonly class TokenService implements TokenServiceInterface
+class TokenService implements TokenServiceInterface
 {
-    private Configuration $config;
+    private ?Configuration $config = null;
     private ClockInterface $clock;
-    private array $validationConstraints;
+    private ?array $validationConstraints = null;
 
     public function __construct(
         private ?string $secretKey = null,
@@ -35,7 +35,18 @@ readonly class TokenService implements TokenServiceInterface
         private int $expirationSeconds = 3600,
         ?ClockInterface $clock = null
     ) {
-        if ($this->secretKey === null) {
+
+        $this->clock = $clock ?? new class implements ClockInterface {
+            public function now(): DateTimeImmutable
+            {
+                return new DateTimeImmutable('now', new DateTimeZone('UTC'));
+            }
+        };
+    }
+
+    public function getConfiguration(): Configuration
+    {
+        if ($this->secretKey === null || $this->secretKey === '') {
             throw new \RuntimeException(
                 'JWT authentication is not configured. Set the API_JWT_SECRET environment variable.'
             );
@@ -46,32 +57,38 @@ readonly class TokenService implements TokenServiceInterface
             InMemory::plainText($this->secretKey)
         );
 
-        $this->clock = $clock ?? new class implements ClockInterface {
-            public function now(): DateTimeImmutable
-            {
-                return new DateTimeImmutable('now', new DateTimeZone('UTC'));
-            }
-        };
-
-        $this->validationConstraints = [
-            new SignedWith($this->config->signer(), $this->config->signingKey()),
-            new IssuedBy($this->issuer),
-            new PermittedFor($this->audience),
-        ];
+        return $this->config;
     }
+
+    public function getValidatorConstrains(): array
+    {
+
+        if ($this->validationConstraints === null) {
+            $config = $this->getConfiguration();
+
+            $this->validationConstraints = [
+                new SignedWith($config->signer(), $config->signingKey()),
+                new IssuedBy($this->issuer),
+                new PermittedFor($this->audience),
+            ];
+        }
+
+        return $this->validationConstraints;
+    }
+
 
     public function generateToken(OxidAwareUserInterface $user): string
     {
         $now = $this->clock->now();
 
-        $token = $this->config->builder()
+        $token = $this->getConfiguration()->builder()
             ->issuedBy($this->issuer)
             ->permittedFor($this->audience)
             ->identifiedBy(bin2hex(random_bytes(16)))
             ->issuedAt($now)
             ->expiresAt($now->modify(sprintf('+%d seconds', $this->expirationSeconds)))
             ->withClaim('userId', $user->getOxid())
-            ->getToken($this->config->signer(), $this->config->signingKey());
+            ->getToken($this->getConfiguration()->signer(), $this->getConfiguration()->signingKey());
 
         return $token->toString();
     }
@@ -79,7 +96,7 @@ readonly class TokenService implements TokenServiceInterface
     public function parseToken(string $token): Plain
     {
         try {
-            $parsedToken = $this->config->parser()->parse($token);
+            $parsedToken = $this->getConfiguration()->parser()->parse($token);
         } catch (\Throwable $e) {
             throw new AuthenticationException('Unable to parse token', 0, $e);
         }
@@ -107,7 +124,7 @@ readonly class TokenService implements TokenServiceInterface
 
     private function isValid(Plain $token): bool
     {
-        return $this->config->validator()->validate($token, ...$this->validationConstraints);
+        return $this->getConfiguration()->validator()->validate($token, ...$this->getValidatorConstrains());
     }
 
     private function isExpired(Plain $token): bool
