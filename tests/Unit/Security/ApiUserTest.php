@@ -60,12 +60,15 @@ final class ApiUserTest extends TestCase
         $this->assertNull($user->getPassword());
     }
 
-    public function testEraseCredentials(): void
+    public function testSerializationDropsPassword(): void
     {
         $user = new ApiUser('id', 'user@example.com', ['ROLE_USER'], 'hashedpassword');
 
-        $user->eraseCredentials();
+        $restored = unserialize(serialize($user));
 
-        $this->assertNull($user->getPassword());
+        $this->assertSame('id', $restored->getOxid());
+        $this->assertSame('user@example.com', $restored->getUserIdentifier());
+        $this->assertSame(['ROLE_USER'], $restored->getRoles());
+        $this->assertNull($restored->getPassword());
     }
 }

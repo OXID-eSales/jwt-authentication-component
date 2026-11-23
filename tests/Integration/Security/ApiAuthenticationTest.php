@@ -21,6 +21,8 @@ use Symfony\Component\Security\Http\AccessToken\HeaderAccessTokenExtractor;
 use Symfony\Component\Security\Http\EventListener\CheckCredentialsListener;
 use OxidEsales\EshopCommunity\Internal\Container\ContainerFactory;
 use OxidEsales\EshopCommunity\Internal\Domain\Authentication\Bridge\PasswordServiceBridgeInterface;
+use Doctrine\DBAL\Connection;
+use OxidEsales\EshopCommunity\Internal\Framework\Database\ConnectionFactoryInterface;
 use OxidEsales\EshopCommunity\Internal\Framework\Database\QueryBuilderFactoryInterface;
 use OxidEsales\EshopCommunity\Internal\Transition\Utility\ContextInterface;
 use PHPUnit\Framework\TestCase;
@@ -44,6 +46,7 @@ final class ApiAuthenticationTest extends TestCase
     private EventDispatcher $eventDispatcher;
     private AdminController $adminController;
     private QueryBuilderFactoryInterface $queryBuilderFactory;
+    private Connection $connection;
     private string $testAdminId;
     private string $testAdminUsername = 'admin@example.com';
     private string $testAdminPassword = 'adminpassword123';
@@ -54,6 +57,7 @@ final class ApiAuthenticationTest extends TestCase
 
         $container = ContainerFactory::getInstance()->getContainer();
         $this->queryBuilderFactory = $container->get(QueryBuilderFactoryInterface::class);
+        $this->connection = $container->get(ConnectionFactoryInterface::class)->create();
 
         $context = $container->get(ContextInterface::class);
         $roleResolver = new RoleResolver($context, [
@@ -200,7 +204,7 @@ final class ApiAuthenticationTest extends TestCase
         $user = $this->userProvider->loadByOxid($this->testUserId);
         $jwt = $this->tokenService->generateToken($user);
 
-        $this->queryBuilderFactory->create()->getConnection()
+        $this->connection
             ->update('oxuser', ['OXACTIVE' => 0], ['OXID' => $this->testUserId]);
 
         try {
@@ -212,7 +216,7 @@ final class ApiAuthenticationTest extends TestCase
             $passport = $this->jwtAuthenticator->authenticate($request);
             $passport->getUser();
         } finally {
-            $this->queryBuilderFactory->create()->getConnection()
+            $this->connection
                 ->update('oxuser', ['OXACTIVE' => 1], ['OXID' => $this->testUserId]);
         }
     }
@@ -222,7 +226,7 @@ final class ApiAuthenticationTest extends TestCase
         $admin = $this->userProvider->loadByOxid($this->testAdminId);
         $jwt = $this->tokenService->generateToken($admin);
 
-        $this->queryBuilderFactory->create()->getConnection()
+        $this->connection
             ->update('oxuser', ['OXRIGHTS' => 'user'], ['OXID' => $this->testAdminId]);
 
         try {
@@ -235,7 +239,7 @@ final class ApiAuthenticationTest extends TestCase
             $this->assertNotContains('ROLE_ADMIN', $reloadedUser->getRoles());
             $this->assertContains('ROLE_USER', $reloadedUser->getRoles());
         } finally {
-            $this->queryBuilderFactory->create()->getConnection()
+            $this->connection
                 ->update('oxuser', ['OXRIGHTS' => 'malladmin'], ['OXID' => $this->testAdminId]);
         }
     }
@@ -260,7 +264,7 @@ final class ApiAuthenticationTest extends TestCase
 
     public function testOtherShopUserJwtIsRejected(): void
     {
-        $connection = $this->queryBuilderFactory->create()->getConnection();
+        $connection = $this->connection;
         $otherShopId = uniqid('os_', true);
 
         $connection->insert('oxuser', [
@@ -351,7 +355,7 @@ final class ApiAuthenticationTest extends TestCase
                 'rights' => 'user',
                 'shopid' => 1,
             ])
-            ->execute();
+            ->executeStatement();
     }
 
     private function deleteTestUser(): void
@@ -361,7 +365,7 @@ final class ApiAuthenticationTest extends TestCase
             ->delete('oxuser')
             ->where('OXID = :oxid')
             ->setParameter('oxid', $this->testUserId)
-            ->execute();
+            ->executeStatement();
     }
 
     private function createTestAdmin(): void
@@ -389,7 +393,7 @@ final class ApiAuthenticationTest extends TestCase
                 'rights' => 'malladmin',
                 'shopid' => 1,
             ])
-            ->execute();
+            ->executeStatement();
     }
 
     private function deleteTestAdmin(): void
@@ -399,6 +403,6 @@ final class ApiAuthenticationTest extends TestCase
             ->delete('oxuser')
             ->where('OXID = :oxid')
             ->setParameter('oxid', $this->testAdminId)
-            ->execute();
+            ->executeStatement();
     }
 }

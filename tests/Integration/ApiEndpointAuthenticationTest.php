@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OxidEsales\AuthComponent\Tests\Integration;
 
+use Doctrine\DBAL\ArrayParameterType;
 use OxidEsales\EshopCommunity\Core\Di\ContainerFacade;
 use OxidEsales\EshopCommunity\Internal\Framework\Database\QueryBuilderFactoryInterface;
 use OxidEsales\EshopCommunity\Internal\Framework\Module\Install\DataObject\OxidEshopPackage;
@@ -256,7 +257,7 @@ final class ApiEndpointAuthenticationTest extends TestCase
                 'rights' => 'user',
                 'shopid' => 1,
             ])
-            ->execute();
+            ->executeStatement();
 
         $this->adminUserId = bin2hex(random_bytes(16));
 
@@ -279,7 +280,7 @@ final class ApiEndpointAuthenticationTest extends TestCase
                 'rights' => 'malladmin',
                 'shopid' => 1,
             ])
-            ->execute();
+            ->executeStatement();
     }
 
     private function deleteTestUsers(): void
@@ -288,8 +289,7 @@ final class ApiEndpointAuthenticationTest extends TestCase
         $queryBuilder
             ->delete('oxuser')
             ->where('OXID IN (:ids)')
-            ->setParameter('ids', [$this->regularUserId, $this->adminUserId], \Doctrine\DBAL\Connection::PARAM_STR_ARRAY)
-            ->execute();
+            ->setParameter('ids', [$this->regularUserId, $this->adminUserId], ArrayParameterType::STRING)
+            ->executeStatement();
     }
-
 }

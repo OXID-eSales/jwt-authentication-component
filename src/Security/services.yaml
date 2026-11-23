@@ -72,9 +72,13 @@ services:
 
   Symfony\Component\Security\Http\Firewall\AuthenticatorManagerListener:
     arguments:
-      $authenticationManager: '@Symfony\Component\Security\Http\Authentication\AuthenticatorManager'
+      $authenticatorManager: '@Symfony\Component\Security\Http\Authentication\AuthenticatorManager'
+
+  OxidEsales\AuthComponent\Security\Auth\AuthenticationListener:
+    arguments:
+      $firewallListener: '@Symfony\Component\Security\Http\Firewall\AuthenticatorManagerListener'
     tags:
-      - { name: kernel.event_listener, event: kernel.request, priority: 8 }
+      - { name: kernel.event_subscriber }
 
   Symfony\Component\Security\Http\Controller\UserValueResolver:
     public: true

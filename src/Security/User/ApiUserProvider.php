@@ -37,7 +37,7 @@ readonly class ApiUserProvider implements ApiUserProviderInterface
             ->setParameter('shopId', $this->context->getCurrentShopId())
             ->setParameter('mallAdmin', 'malladmin');
 
-        $userData = $queryBuilder->execute()->fetchAssociative();
+        $userData = $queryBuilder->executeQuery()->fetchAssociative();
 
         if (!$userData) {
             throw new UserNotFoundException(sprintf('User "%s" not found.', $identifier));
@@ -59,7 +59,7 @@ readonly class ApiUserProvider implements ApiUserProviderInterface
             ->setParameter('shopId', $this->context->getCurrentShopId())
             ->setParameter('mallAdmin', 'malladmin');
 
-        $userData = $queryBuilder->execute()->fetchAssociative();
+        $userData = $queryBuilder->executeQuery()->fetchAssociative();
 
         if (!$userData) {
             throw new UserNotFoundException(sprintf('User "%s" not found.', $oxid));

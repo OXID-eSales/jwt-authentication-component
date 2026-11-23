@@ -3,8 +3,13 @@ set -e
 export XDEBUG_MODE=coverage
 export API_JWT_SECRET="${API_JWT_SECRET:-this-is-a-test-secret-key-for-ci}"
 
-if ! grep -q 'API_JWT_SECRET' "../../../.env" 2>/dev/null; then
-    echo "API_JWT_SECRET=${API_JWT_SECRET}" >> "../../../.env"
+ENV_FILE="../../../.env"
+# Symfony Dotenv ignores .env.dist as soon as .env exists, so start from a copy of it
+if [ ! -f "${ENV_FILE}" ] && [ -f "${ENV_FILE}.dist" ]; then
+    cp "${ENV_FILE}.dist" "${ENV_FILE}"
+fi
+if ! grep -q 'API_JWT_SECRET' "${ENV_FILE}" 2>/dev/null; then
+    printf '\nAPI_JWT_SECRET=%s\n' "${API_JWT_SECRET}" >> "${ENV_FILE}"
 fi
 PHPUNIT="vendor/bin/phpunit"
 if [ ! -f "${PHPUNIT}" ]; then

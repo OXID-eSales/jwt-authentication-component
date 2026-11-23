@@ -10,6 +10,9 @@ declare(strict_types=1);
 namespace OxidEsales\AuthComponent\Tests\Integration\Security;
 
 use OxidEsales\EshopCommunity\Internal\Container\ContainerFactory;
+use Doctrine\DBAL\ArrayParameterType;
+use Doctrine\DBAL\Connection;
+use OxidEsales\EshopCommunity\Internal\Framework\Database\ConnectionFactoryInterface;
 use OxidEsales\EshopCommunity\Internal\Framework\Database\QueryBuilderFactoryInterface;
 use OxidEsales\EshopCommunity\Internal\Transition\Utility\ContextInterface;
 use OxidEsales\AuthComponent\Security\User\ApiUser;
@@ -21,6 +24,7 @@ use Symfony\Component\Security\Core\Exception\UserNotFoundException;
 final class ApiUserProviderTest extends TestCase
 {
     private QueryBuilderFactoryInterface $queryBuilderFactory;
+    private Connection $connection;
     private ApiUserProvider $userProvider;
     private string $testUserId;
     private string $testMallAdminId;
@@ -35,6 +39,7 @@ final class ApiUserProviderTest extends TestCase
 
         $container = ContainerFactory::getInstance()->getContainer();
         $this->queryBuilderFactory = $container->get(QueryBuilderFactoryInterface::class);
+        $this->connection = $container->get(ConnectionFactoryInterface::class)->create();
         $context = $container->get(ContextInterface::class);
 
         $roleResolver = new RoleResolver($context, [
@@ -85,7 +90,7 @@ final class ApiUserProviderTest extends TestCase
 
     public function testLoadByOxidDoesNotFindUserFromOtherShop(): void
     {
-        $connection = $this->queryBuilderFactory->create()->getConnection();
+        $connection = $this->connection;
         $id = uniqid('os_', true);
 
         $connection->insert('oxuser', [
@@ -108,7 +113,7 @@ final class ApiUserProviderTest extends TestCase
 
     public function testLoadByOxidFindsMallAdminFromOtherShop(): void
     {
-        $connection = $this->queryBuilderFactory->create()->getConnection();
+        $connection = $this->connection;
         $id = uniqid('ma_os_', true);
 
         $connection->insert('oxuser', [
@@ -164,7 +169,7 @@ final class ApiUserProviderTest extends TestCase
 
     public function testLoadUserByIdentifierDoesNotFindUserFromOtherShop(): void
     {
-        $connection = $this->queryBuilderFactory->create()->getConnection();
+        $connection = $this->connection;
         $id = uniqid('os_', true);
         $username = "test-othershop-{$id}@example.com";
 
@@ -188,7 +193,7 @@ final class ApiUserProviderTest extends TestCase
 
     public function testLoadUserByIdentifierFindsMallAdminFromOtherShop(): void
     {
-        $connection = $this->queryBuilderFactory->create()->getConnection();
+        $connection = $this->connection;
         $id = uniqid('ma_os_', true);
         $username = "test-malladmin-othershop-{$id}@example.com";
 
@@ -250,7 +255,7 @@ final class ApiUserProviderTest extends TestCase
 
     private function createTestUsers(): void
     {
-        $connection = $this->queryBuilderFactory->create()->getConnection();
+        $connection = $this->connection;
         $timestamp = uniqid('', true);
 
         $this->testUserId = uniqid('user_', true);
@@ -294,8 +299,8 @@ final class ApiUserProviderTest extends TestCase
             $queryBuilder
                 ->delete('oxuser')
                 ->where('OXID IN (:ids)')
-                ->setParameter('ids', [$this->testUserId, $this->testMallAdminId, $this->testAdminId], \Doctrine\DBAL\Connection::PARAM_STR_ARRAY)
-                ->execute();
+                ->setParameter('ids', [$this->testUserId, $this->testMallAdminId, $this->testAdminId], ArrayParameterType::STRING)
+                ->executeStatement();
         }
     }
 }

@@ -17,7 +17,7 @@ final class ApiUser implements OxidAwareUserInterface, PasswordAuthenticatedUser
         private readonly string $oxid,
         private readonly string $username,
         private readonly array $roles,
-        #[\SensitiveParameter] private ?string $password = null
+        #[\SensitiveParameter] private readonly ?string $password = null
     ) {
     }
 
@@ -41,8 +41,25 @@ final class ApiUser implements OxidAwareUserInterface, PasswordAuthenticatedUser
         return $this->password;
     }
 
+    #[\Deprecated]
     public function eraseCredentials(): void
     {
+    }
+
+    public function __serialize(): array
+    {
+        return [
+            'oxid' => $this->oxid,
+            'username' => $this->username,
+            'roles' => $this->roles,
+        ];
+    }
+
+    public function __unserialize(array $data): void
+    {
+        $this->oxid = $data['oxid'];
+        $this->username = $data['username'];
+        $this->roles = $data['roles'];
         $this->password = null;
     }
 }

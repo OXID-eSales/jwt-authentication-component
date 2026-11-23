@@ -6,9 +6,9 @@ on:
       scenario:
         type: choice
         options:
-          - 7.7.x
+          - 8.0.x
           - use custom testplan
-        default: '7.7.x'
+        default: '8.0.x'
         description: 'Choose test scenario'
       limit:
         type: choice
@@ -23,7 +23,7 @@ on:
       custom_testplan:
         type: string
         description: 'Custom testplan'
-        default: '~/defaults/7.7.x.yaml,~/defaults/php8.5_mysql8.4_only.yaml,~/jwt-component.yaml'
+        default: '~/defaults/8.0.x.yaml,~/defaults/php8.5_mysql8.4_only.yaml,~/jwt-component.yaml'
       runs_on:
         type: string
         description: 'JSON string/array describing the runner'
@@ -59,7 +59,7 @@ jobs:
           esac
           # shellcheck disable=SC2088
           case '${{ inputs.scenario}}' in
-            "7.7.x") TESTPLAN="~/defaults/7.7.x.yaml,${LIMIT}${PLAN}" ;;
+            "8.0.x") TESTPLAN="~/defaults/8.0.x.yaml,${LIMIT}${PLAN}" ;;
             "use custom testplan") TESTPLAN="${{ inputs.custom_testplan }}" ;;
             *)
               echo "Illegal choice, fix the workflow"
