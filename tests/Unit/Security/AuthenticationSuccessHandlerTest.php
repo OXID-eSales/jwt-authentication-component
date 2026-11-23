@@ -31,7 +31,7 @@ final class AuthenticationSuccessHandlerTest extends TestCase
             ->with($user)
             ->willReturn($jwtToken);
 
-        $securityToken = $this->createMock(TokenInterface::class);
+        $securityToken = $this->createStub(TokenInterface::class);
         $securityToken->method('getUser')->willReturn($user);
 
         $handler = new AuthenticationSuccessHandler($tokenService);
@@ -47,12 +47,12 @@ final class AuthenticationSuccessHandlerTest extends TestCase
 
     public function testOnAuthenticationSuccessWithNonApiUserReturnsError(): void
     {
-        $nonApiUser = $this->createMock(UserInterface::class);
+        $nonApiUser = $this->createStub(UserInterface::class);
 
         $tokenService = $this->createMock(TokenServiceInterface::class);
         $tokenService->expects($this->never())->method('generateToken');
 
-        $securityToken = $this->createMock(TokenInterface::class);
+        $securityToken = $this->createStub(TokenInterface::class);
         $securityToken->method('getUser')->willReturn($nonApiUser);
 
         $handler = new AuthenticationSuccessHandler($tokenService);

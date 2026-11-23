@@ -15,28 +15,19 @@ use PHPUnit\Framework\TestCase;
 
 final class OxidPasswordHasherTest extends TestCase
 {
-    private PasswordServiceBridgeInterface $passwordService;
-    private OxidPasswordHasher $hasher;
-
-    protected function setUp(): void
-    {
-        parent::setUp();
-        $this->passwordService = $this->createMock(PasswordServiceBridgeInterface::class);
-        $this->hasher = new OxidPasswordHasher($this->passwordService);
-    }
-
     public function testHash(): void
     {
         $plainPassword = 'secret123';
         $hashedPassword = '$2y$10$hashedvalue';
 
-        $this->passwordService
+        $passwordService = $this->createMock(PasswordServiceBridgeInterface::class);
+        $passwordService
             ->expects($this->once())
             ->method('hash')
             ->with($plainPassword)
             ->willReturn($hashedPassword);
 
-        $result = $this->hasher->hash($plainPassword);
+        $result = (new OxidPasswordHasher($passwordService))->hash($plainPassword);
 
         $this->assertSame($hashedPassword, $result);
     }
@@ -46,13 +37,14 @@ final class OxidPasswordHasherTest extends TestCase
         $plainPassword = 'secret123';
         $hashedPassword = '$2y$10$hashedvalue';
 
-        $this->passwordService
+        $passwordService = $this->createMock(PasswordServiceBridgeInterface::class);
+        $passwordService
             ->expects($this->once())
             ->method('verifyPassword')
             ->with($plainPassword, $hashedPassword)
             ->willReturn(true);
 
-        $result = $this->hasher->verify($hashedPassword, $plainPassword);
+        $result = (new OxidPasswordHasher($passwordService))->verify($hashedPassword, $plainPassword);
 
         $this->assertTrue($result);
     }
@@ -62,32 +54,34 @@ final class OxidPasswordHasherTest extends TestCase
         $plainPassword = 'wrongpassword';
         $hashedPassword = '$2y$10$hashedvalue';
 
-        $this->passwordService
+        $passwordService = $this->createMock(PasswordServiceBridgeInterface::class);
+        $passwordService
             ->expects($this->once())
             ->method('verifyPassword')
             ->with($plainPassword, $hashedPassword)
             ->willReturn(false);
 
-        $result = $this->hasher->verify($hashedPassword, $plainPassword);
+        $result = (new OxidPasswordHasher($passwordService))->verify($hashedPassword, $plainPassword);
 
         $this->assertFalse($result);
     }
 
     public function testVerifyWithEmptyHashedPassword(): void
     {
-        $this->passwordService
+        $passwordService = $this->createMock(PasswordServiceBridgeInterface::class);
+        $passwordService
             ->expects($this->never())
             ->method('verifyPassword');
 
-        $result = $this->hasher->verify('', 'anypassword');
+        $result = (new OxidPasswordHasher($passwordService))->verify('', 'anypassword');
 
         $this->assertFalse($result);
     }
 
     public function testNeedsRehash(): void
     {
-        $result = $this->hasher->needsRehash('$2y$10$anyhash');
+        $hasher = new OxidPasswordHasher($this->createStub(PasswordServiceBridgeInterface::class));
 
-        $this->assertFalse($result);
+        $this->assertFalse($hasher->needsRehash('$2y$10$anyhash'));
     }
 }

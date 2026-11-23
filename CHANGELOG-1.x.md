@@ -1,5 +1,16 @@
 # Change Log for OXID eShop JWT Authentication Component
 
+## v1.2.0 - Unreleased
+
+### Added
+- Support for PHP 8.5
+
+### Changed
+- Updated PHPUnit to ^13.4
+
+### Removed
+- PHP 8.3 support
+
 ## v1.1.0 - 2026-10-15
 
 ### Added

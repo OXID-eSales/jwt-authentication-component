@@ -25,7 +25,7 @@ final class RoleResolverTest extends TestCase
     {
         parent::setUp();
 
-        $this->context = $this->createMock(ContextInterface::class);
+        $this->context = $this->createStub(ContextInterface::class);
         $this->context->method('getCurrentShopId')->willReturn(1);
     }
 

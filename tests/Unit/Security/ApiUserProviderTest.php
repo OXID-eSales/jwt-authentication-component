@@ -27,9 +27,9 @@ final class ApiUserProviderTest extends TestCase
         parent::setUp();
 
         $this->provider = new ApiUserProvider(
-            $this->createMock(QueryBuilderFactoryInterface::class),
-            $this->createMock(RoleResolverInterface::class),
-            $this->createMock(ContextInterface::class),
+            $this->createStub(QueryBuilderFactoryInterface::class),
+            $this->createStub(RoleResolverInterface::class),
+            $this->createStub(ContextInterface::class),
         );
     }
 
@@ -37,7 +37,7 @@ final class ApiUserProviderTest extends TestCase
     {
         $this->expectException(UnsupportedUserException::class);
 
-        $this->provider->refreshUser($this->createMock(UserInterface::class));
+        $this->provider->refreshUser($this->createStub(UserInterface::class));
     }
 
     public function testSupportsClassReturnsTrueForApiUser(): void

@@ -29,8 +29,8 @@ final class JwtAuthenticatorTest extends TestCase
     {
         parent::setUp();
 
-        $this->tokenService = $this->createMock(TokenService::class);
-        $this->userProvider = $this->createMock(ApiUserProvider::class);
+        $this->tokenService = $this->createStub(TokenService::class);
+        $this->userProvider = $this->createStub(ApiUserProvider::class);
         $this->authenticator = new JwtAuthenticator($this->tokenService, $this->userProvider, new HeaderAccessTokenExtractor());
     }
 
@@ -72,14 +72,18 @@ final class JwtAuthenticatorTest extends TestCase
         $request = new Request();
         $request->headers->set('Authorization', 'Bearer invalid-token');
 
-        $this->tokenService
+        $tokenService = $this->createMock(TokenService::class);
+        $tokenService
+            ->expects($this->once())
             ->method('parseToken')
             ->with('invalid-token')
             ->willThrowException(new AuthenticationException('Invalid token'));
 
+        $authenticator = new JwtAuthenticator($tokenService, $this->userProvider, new HeaderAccessTokenExtractor());
+
         $this->expectException(AuthenticationException::class);
 
-        $this->authenticator->authenticate($request);
+        $authenticator->authenticate($request);
     }
 
     public function testAuthenticateReturnsPassportForValidToken(): void
@@ -99,6 +103,7 @@ final class JwtAuthenticatorTest extends TestCase
 
         $userProvider = $this->createMock(ApiUserProvider::class);
         $userProvider
+            ->expects($this->once())
             ->method('loadByOxid')
             ->with('user123')
             ->willReturn($user);
@@ -233,7 +238,7 @@ final class JwtAuthenticatorTest extends TestCase
     public function testOnAuthenticationSuccessReturnsNull(): void
     {
         $request = new Request();
-        $token = $this->createMock(TokenInterface::class);
+        $token = $this->createStub(TokenInterface::class);
 
         $response = $this->authenticator->onAuthenticationSuccess($request, $token, 'api');
 

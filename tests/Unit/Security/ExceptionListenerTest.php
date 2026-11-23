@@ -21,16 +21,6 @@ use Symfony\Component\Security\Core\Exception\AuthenticationException;
 
 final class ExceptionListenerTest extends TestCase
 {
-    private AuthorizationCheckerInterface $authChecker;
-    private ExceptionListener $listener;
-
-    protected function setUp(): void
-    {
-        parent::setUp();
-        $this->authChecker = $this->createMock(AuthorizationCheckerInterface::class);
-        $this->listener = new ExceptionListener($this->authChecker);
-    }
-
     public function testGetSubscribedEvents(): void
     {
         $events = ExceptionListener::getSubscribedEvents();
@@ -41,14 +31,16 @@ final class ExceptionListenerTest extends TestCase
 
     public function testAccessDeniedForUnauthenticatedUser(): void
     {
-        $this->authChecker
+        $authChecker = $this->createMock(AuthorizationCheckerInterface::class);
+        $authChecker
+            ->expects($this->once())
             ->method('isGranted')
             ->with('IS_AUTHENTICATED_FULLY')
             ->willReturn(false);
 
         $event = $this->createExceptionEvent(new AccessDeniedException());
 
-        $this->listener->onKernelException($event);
+        (new ExceptionListener($authChecker))->onKernelException($event);
 
         $response = $event->getResponse();
         $this->assertNotNull($response);
@@ -60,14 +52,16 @@ final class ExceptionListenerTest extends TestCase
 
     public function testAccessDeniedForAuthenticatedUser(): void
     {
-        $this->authChecker
+        $authChecker = $this->createMock(AuthorizationCheckerInterface::class);
+        $authChecker
+            ->expects($this->once())
             ->method('isGranted')
             ->with('IS_AUTHENTICATED_FULLY')
             ->willReturn(true);
 
         $event = $this->createExceptionEvent(new AccessDeniedException());
 
-        $this->listener->onKernelException($event);
+        (new ExceptionListener($authChecker))->onKernelException($event);
 
         $response = $event->getResponse();
         $this->assertNotNull($response);
@@ -82,7 +76,7 @@ final class ExceptionListenerTest extends TestCase
     {
         $event = $this->createExceptionEvent(new AuthenticationException('Invalid token'));
 
-        $this->listener->onKernelException($event);
+        $this->createListener()->onKernelException($event);
 
         $response = $event->getResponse();
         $this->assertNotNull($response);
@@ -96,14 +90,19 @@ final class ExceptionListenerTest extends TestCase
     {
         $event = $this->createExceptionEvent(new \RuntimeException('Some error'));
 
-        $this->listener->onKernelException($event);
+        $this->createListener()->onKernelException($event);
 
         $this->assertNull($event->getResponse());
     }
 
+    private function createListener(): ExceptionListener
+    {
+        return new ExceptionListener($this->createStub(AuthorizationCheckerInterface::class));
+    }
+
     private function createExceptionEvent(\Throwable $exception): ExceptionEvent
     {
-        $kernel = $this->createMock(HttpKernelInterface::class);
+        $kernel = $this->createStub(HttpKernelInterface::class);
         $request = new Request();
 
         return new ExceptionEvent($kernel, $request, HttpKernelInterface::MAIN_REQUEST, $exception);

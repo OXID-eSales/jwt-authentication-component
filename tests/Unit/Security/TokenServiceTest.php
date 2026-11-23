@@ -288,7 +288,7 @@ final class TokenServiceTest extends TestCase
     public function testTokenServiceUsesInjectedClock(): void
     {
         $fixedTime = new DateTimeImmutable('2024-01-15 12:00:00', new DateTimeZone('UTC'));
-        $clock = $this->createMock(ClockInterface::class);
+        $clock = $this->createStub(ClockInterface::class);
         $clock->method('now')->willReturn($fixedTime);
 
         $tokenService = new TokenService(
